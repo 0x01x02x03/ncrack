@@ -1,4 +1,4 @@
-Ncrack 0.5 ( http://ncrack.org )
+Ncrack 0.6 ( http://ncrack.org )
 Usage: ncrack [Options] {target and service specification}
 TARGET SPECIFICATION:
   Can pass hostnames, IP addresses, networks, etc.
@@ -20,6 +20,8 @@ SERVICE SPECIFICATION:
   Misc options:
     ssl: enable SSL over this service
     path <name>: used in modules like HTTP ('=' needs escaping if used)
+    db <name>: used in modules like MongoDB to specify the database
+    domain <name>: used in modules like WinRM to specify the domain
 TIMING AND PERFORMANCE:
   Options which take <time> are in seconds, unless you append 'ms'
   (miliseconds), 'm' (minutes), or 'h' (hours) to the value (e.g. 30m).
@@ -32,6 +34,8 @@ TIMING AND PERFORMANCE:
     to (time-out): maximum cracking <time> for service, regardless of success so far
   -T<0-5>: Set timing template (higher is faster)
   --connection-limit <number>: threshold for total concurrent connections
+  --stealthy-linear: try credentials using only one connection against each specified host 
+    until you hit the same host again. Overrides all other timing options.
 AUTHENTICATION:
   -U <filename>: username file
   -P <filename>: password file
@@ -58,7 +62,7 @@ MISC:
   -V: Print version number
   -h: Print this help summary page.
 MODULES:
-  FTP, SSH, Telnet, HTTP(S), POP3(S), SMB, RDP, VNC, SIP, Redis, PostgreSQL, MySQL
+  SSH, RDP, FTP, Telnet, HTTP(S), POP3(S), IMAP, SMB, VNC, SIP, Redis, PostgreSQL, MySQL, MSSQL, MongoDB, Cassandra, WinRM, OWA
 EXAMPLES:
   ncrack -v --user root localhost:22
   ncrack -v -T5 https://192.168.0.1

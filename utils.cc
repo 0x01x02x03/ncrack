@@ -5,18 +5,18 @@
  *                                                                         *
  ***********************IMPORTANT NMAP LICENSE TERMS************************
  *                                                                         *
- * The Nmap Security Scanner is (C) 1996-2016 Insecure.Com LLC. Nmap is    *
- * also a registered trademark of Insecure.Com LLC.  This program is free  *
- * software; you may redistribute and/or modify it under the terms of the  *
- * GNU General Public License as published by the Free Software            *
- * Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE CLARIFICATIONS  *
- * AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your right to use,    *
- * modify, and redistribute this software under certain conditions.  If    *
- * you wish to embed Nmap technology into proprietary software, we sell    *
- * alternative licenses (contact sales@nmap.com).  Dozens of software      *
- * vendors already license Nmap technology such as host discovery, port    *
- * scanning, OS detection, version detection, and the Nmap Scripting       *
- * Engine.                                                                 *
+ * The Nmap Security Scanner is (C) 1996-2017 Insecure.Com LLC ("The Nmap  *
+ * Project"). Nmap is also a registered trademark of the Nmap Project.     *
+ * This program is free software; you may redistribute and/or modify it    *
+ * under the terms of the GNU General Public License as published by the   *
+ * Free Software Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE   *
+ * CLARIFICATIONS AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your   *
+ * right to use, modify, and redistribute this software under certain      *
+ * conditions.  If you wish to embed Nmap technology into proprietary      *
+ * software, we sell alternative licenses (contact sales@nmap.com).        *
+ * Dozens of software vendors already license Nmap technology such as      *
+ * host discovery, port scanning, OS detection, version detection, and     *
+ * the Nmap Scripting Engine.                                              *
  *                                                                         *
  * Note that the GPL places important restrictions on "derivative works",  *
  * yet it does not provide a detailed definition of that term.  To avoid   *
@@ -58,11 +58,18 @@
  * particularly including the GPL Section 3 requirements of providing      *
  * source code and allowing free redistribution of the work as a whole.    *
  *                                                                         *
- * As another special exception to the GPL terms, Insecure.Com LLC grants  *
+ * As another special exception to the GPL terms, the Nmap Project grants  *
  * permission to link the code of this program with any version of the     *
  * OpenSSL library which is distributed under a license identical to that  *
  * listed in the included docs/licenses/OpenSSL.txt file, and distribute   *
  * linked combinations including the two.                                  *
+ *                                                                         *
+ * The Nmap Project has permission to redistribute Npcap, a packet         *
+ * capturing driver and library for the Microsoft Windows platform.        *
+ * Npcap is a separate work with it's own license rather than this Nmap    *
+ * license.  Since the Npcap license does not permit redistribution        *
+ * without special permission, our Nmap Windows binary packages which      *
+ * contain Npcap may not be redistributed without special permission.      *
  *                                                                         *
  * Any redistribution of Covered Software, including any derived works,    *
  * must obey and carry forward all of the terms of this license, including *
@@ -103,12 +110,12 @@
  * to the dev@nmap.org mailing list for possible incorporation into the    *
  * main distribution.  By sending these changes to Fyodor or one of the    *
  * Insecure.Org development mailing lists, or checking them into the Nmap  *
- * source code repository, it is understood (unless you specify otherwise) *
- * that you are offering the Nmap Project (Insecure.Com LLC) the           *
- * unlimited, non-exclusive right to reuse, modify, and relicense the      *
- * code.  Nmap will always be available Open Source, but this is important *
- * because the inability to relicense code has caused devastating problems *
- * for other Free Software projects (such as KDE and NASM).  We also       *
+ * source code repository, it is understood (unless you specify            *
+ * otherwise) that you are offering the Nmap Project the unlimited,        *
+ * non-exclusive right to reuse, modify, and relicense the code.  Nmap     *
+ * will always be available Open Source, but this is important because     *
+ * the inability to relicense code has caused devastating problems for     *
+ * other Free Software projects (such as KDE and NASM).  We also           *
  * occasionally relicense the code to third parties as discussed above.    *
  * If you wish to specify special license conditions of your               *
  * contributions, just say so when you send them.                          *
@@ -404,6 +411,49 @@ int base64_encode(const char *str, int length, char *b64store)
   return p - b64store;
 }
 
+int
+base64_decode(const char *base64, size_t length, char *to)
+{
+  /* Table of base64 values for first 128 characters.  Note that this
+     assumes ASCII (but so does Wget in other places).  */
+  static short base64_char_to_value[256] =
+  {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 62, 63, 62, 62, 63, 52, 53, 54, 55,
+    56, 57, 58, 59, 60, 61,  0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
+    7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  0,
+    0,  0,  0, 63,  0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51 
+  };
+  size_t i;
+  unsigned char* p = (unsigned char*) base64;
+  char *q = to;
+  int pad = length > 0 && (length % 4 || p[length - 1] == '=');
+  const size_t L = ((length + 3) / 4 - pad) * 4;
+
+  for (i = 0; i < length; i += 4) {
+    //unsigned char c;
+    //unsigned long value;
+
+    int n = base64_char_to_value[p[i]] << 18 | base64_char_to_value[p[i + 1]] << 12 | base64_char_to_value[p[i + 2]] << 6 | base64_char_to_value[p[i + 3]];
+    *q++ = n >> 16;
+    *q++ = n >> 8 & 0xFF;
+    *q++ = n & 0xFF;
+
+  }
+  if (pad) {
+    int n = base64_char_to_value[p[L]] << 18 | base64_char_to_value[p[L + 1]] << 12;
+    *q++ = n >> 16;
+
+    if (length > L + 2 && p[L + 2] != '=')
+    {
+      n |= base64_char_to_value[p[L + 2]] << 6;
+      *q++ = n >> 8 & 0xFF;
+    }
+  }
+  return q - to;
+}
 
 /* mmap() an entire file into the address space.  Returns a pointer
    to the beginning of the file.  The mmap'ed length is returned
@@ -412,7 +462,7 @@ int base64_encode(const char *str, int length, char *b64store)
    something appropriate.  The user is responsible for doing
    an munmap(ptr, length) when finished with it.  openflags should 
    be O_RDONLY or O_RDWR, or O_WRONLY
-*/
+   */
 #ifndef WIN32
 char *mmapfile(char *fname, int *length, int openflags) {
   struct stat st;
@@ -529,55 +579,55 @@ int win32_munmap(char *filestr, int filelen)
 
 
 /* Create a UNICODE string based on an ASCII one. Be sure to free the memory! */
-char *
+  char *
 unicode_alloc(const char *string)
 {
-	size_t i;
-	char *unicode;
-	size_t unicode_length = (strlen(string) + 1) * 2;
+  size_t i;
+  char *unicode;
+  size_t unicode_length = (strlen(string) + 1) * 2;
 
-	if(unicode_length < strlen(string))
-		fatal("%s Overflow.", __func__);
+  if(unicode_length < strlen(string))
+    fatal("%s Overflow.", __func__);
 
-	unicode = (char *)safe_malloc(unicode_length);
+  unicode = (char *)safe_malloc(unicode_length);
 
-	memset(unicode, 0, unicode_length);
-	for(i = 0; i < strlen(string); i++)
-	{
-		unicode[(i * 2)] = string[i];
-	}
+  memset(unicode, 0, unicode_length);
+  for(i = 0; i < strlen(string); i++)
+  {
+    unicode[(i * 2)] = string[i];
+  }
 
-	return unicode;
+  return unicode;
 }
 
 
 /* Same as unicode_alloc(), except convert the string to uppercase first. */
-char *
+  char *
 unicode_alloc_upper(const char *string)
 {
-	size_t i;
-	char *unicode;
-	size_t unicode_length = (strlen(string) + 1) * 2;
+  size_t i;
+  char *unicode;
+  size_t unicode_length = (strlen(string) + 1) * 2;
 
-	if(unicode_length < strlen(string))
-		fatal("%s Overflow.", __func__);
+  if(unicode_length < strlen(string))
+    fatal("%s Overflow.", __func__);
 
-	unicode = (char *)safe_malloc(unicode_length);
+  unicode = (char *)safe_malloc(unicode_length);
 
-	memset(unicode, 0, unicode_length);
-	for(i = 0; i < strlen(string); i++)
-	{
-		unicode[(i * 2)] = toupper(string[i]);
-	}
+  memset(unicode, 0, unicode_length);
+  for(i = 0; i < strlen(string); i++)
+  {
+    unicode[(i * 2)] = toupper(string[i]);
+  }
 
-	return unicode;
+  return unicode;
 }
 
 
 /* Reverses the order of the bytes in the memory pointed for the designated
  * length. 
  */
-void
+  void
 mem_reverse(uint8_t *p, unsigned int len)
 {
   unsigned int i, j;
@@ -600,54 +650,54 @@ mem_reverse(uint8_t *p, unsigned int len)
    buffer and updates the variables to make room if necessary. */
 int strbuf_append(char **buf, size_t *size, size_t *offset, const char *s, size_t n)
 {
-    //ncat_assert(*offset <= *size);
+  //ncat_assert(*offset <= *size);
 
-    if (n >= *size - *offset) {
-        *size += n + 1;
-        *buf = (char *) safe_realloc(*buf, *size);
-    }
+  if (n >= *size - *offset) {
+    *size += n + 1;
+    *buf = (char *) safe_realloc(*buf, *size);
+  }
 
-    memcpy(*buf + *offset, s, n);
-    *offset += n;
-    (*buf)[*offset] = '\0';
+  memcpy(*buf + *offset, s, n);
+  *offset += n;
+  (*buf)[*offset] = '\0';
 
-    return n;
+  return n;
 }
 
 /* Append a '\0'-terminated string as with strbuf_append. */
 int strbuf_append_str(char **buf, size_t *size, size_t *offset, const char *s)
 {
-    return strbuf_append(buf, size, offset, s, strlen(s));
+  return strbuf_append(buf, size, offset, s, strlen(s));
 }
 
 /* Do a sprintf at the given offset into a malloc-allocated buffer. Reallocates
    the buffer and updates the variables to make room if necessary. */
 int strbuf_sprintf(char **buf, size_t *size, size_t *offset, const char *fmt, ...)
 {
-    va_list va;
-    int n;
+  va_list va;
+  int n;
 
-    //ncat_assert(*offset <= *size);
+  //ncat_assert(*offset <= *size);
 
-    if (*buf == NULL) {
-        *size = 1;
-        *buf = (char *) safe_malloc(*size);
-    }
+  if (*buf == NULL) {
+    *size = 1;
+    *buf = (char *) safe_malloc(*size);
+  }
 
-    for (;;) {
-        va_start(va, fmt);
-        n = Vsnprintf(*buf + *offset, *size - *offset, fmt, va);
-        va_end(va);
-        if (n < 0)
-            *size = MAX(*size, 1) * 2;
-        else if ((size_t)n >= *size - *offset)
-            *size += n + 1;
-        else
-            break;
-        *buf = (char *) safe_realloc(*buf, *size);
-    }
-    *offset += n;
+  for (;;) {
+    va_start(va, fmt);
+    n = Vsnprintf(*buf + *offset, *size - *offset, fmt, va);
+    va_end(va);
+    if (n < 0)
+      *size = MAX(*size, 1) * 2;
+    else if ((size_t)n >= *size - *offset)
+      *size += n + 1;
+    else
+      break;
+    *buf = (char *) safe_realloc(*buf, *size);
+  }
+  *offset += n;
 
-    return n;
+  return n;
 }
 

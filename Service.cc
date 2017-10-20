@@ -7,18 +7,18 @@
  *                                                                         *
  ***********************IMPORTANT NMAP LICENSE TERMS************************
  *                                                                         *
- * The Nmap Security Scanner is (C) 1996-2016 Insecure.Com LLC. Nmap is    *
- * also a registered trademark of Insecure.Com LLC.  This program is free  *
- * software; you may redistribute and/or modify it under the terms of the  *
- * GNU General Public License as published by the Free Software            *
- * Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE CLARIFICATIONS  *
- * AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your right to use,    *
- * modify, and redistribute this software under certain conditions.  If    *
- * you wish to embed Nmap technology into proprietary software, we sell    *
- * alternative licenses (contact sales@nmap.com).  Dozens of software      *
- * vendors already license Nmap technology such as host discovery, port    *
- * scanning, OS detection, version detection, and the Nmap Scripting       *
- * Engine.                                                                 *
+ * The Nmap Security Scanner is (C) 1996-2017 Insecure.Com LLC ("The Nmap  *
+ * Project"). Nmap is also a registered trademark of the Nmap Project.     *
+ * This program is free software; you may redistribute and/or modify it    *
+ * under the terms of the GNU General Public License as published by the   *
+ * Free Software Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE   *
+ * CLARIFICATIONS AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your   *
+ * right to use, modify, and redistribute this software under certain      *
+ * conditions.  If you wish to embed Nmap technology into proprietary      *
+ * software, we sell alternative licenses (contact sales@nmap.com).        *
+ * Dozens of software vendors already license Nmap technology such as      *
+ * host discovery, port scanning, OS detection, version detection, and     *
+ * the Nmap Scripting Engine.                                              *
  *                                                                         *
  * Note that the GPL places important restrictions on "derivative works",  *
  * yet it does not provide a detailed definition of that term.  To avoid   *
@@ -60,11 +60,18 @@
  * particularly including the GPL Section 3 requirements of providing      *
  * source code and allowing free redistribution of the work as a whole.    *
  *                                                                         *
- * As another special exception to the GPL terms, Insecure.Com LLC grants  *
+ * As another special exception to the GPL terms, the Nmap Project grants  *
  * permission to link the code of this program with any version of the     *
  * OpenSSL library which is distributed under a license identical to that  *
  * listed in the included docs/licenses/OpenSSL.txt file, and distribute   *
  * linked combinations including the two.                                  *
+ *                                                                         *
+ * The Nmap Project has permission to redistribute Npcap, a packet         *
+ * capturing driver and library for the Microsoft Windows platform.        *
+ * Npcap is a separate work with it's own license rather than this Nmap    *
+ * license.  Since the Npcap license does not permit redistribution        *
+ * without special permission, our Nmap Windows binary packages which      *
+ * contain Npcap may not be redistributed without special permission.      *
  *                                                                         *
  * Any redistribution of Covered Software, including any derived works,    *
  * must obey and carry forward all of the terms of this license, including *
@@ -105,12 +112,12 @@
  * to the dev@nmap.org mailing list for possible incorporation into the    *
  * main distribution.  By sending these changes to Fyodor or one of the    *
  * Insecure.Org development mailing lists, or checking them into the Nmap  *
- * source code repository, it is understood (unless you specify otherwise) *
- * that you are offering the Nmap Project (Insecure.Com LLC) the           *
- * unlimited, non-exclusive right to reuse, modify, and relicense the      *
- * code.  Nmap will always be available Open Source, but this is important *
- * because the inability to relicense code has caused devastating problems *
- * for other Free Software projects (such as KDE and NASM).  We also       *
+ * source code repository, it is understood (unless you specify            *
+ * otherwise) that you are offering the Nmap Project the unlimited,        *
+ * non-exclusive right to reuse, modify, and relicense the code.  Nmap     *
+ * will always be available Open Source, but this is important because     *
+ * the inability to relicense code has caused devastating problems for     *
+ * other Free Software projects (such as KDE and NASM).  We also           *
  * occasionally relicense the code to third parties as discussed above.    *
  * If you wish to specify special license conditions of your               *
  * contributions, just say so when you send them.                          *
@@ -149,6 +156,7 @@ Service()
   list_finished = false;
   just_started = true;
   more_rounds = false;
+  skip_username = false;
 
   end.orly = false;
   end.reason = NULL;
@@ -167,6 +175,10 @@ Service()
   connection_retries = -1;
   timeout = -1;
   path = Strndup("/", 2); /* path is '/' by default */
+  
+  db = Strndup("admin", 5); /* databse is 'admin' by default */
+  domain = Strndup("Workstation", 11); /* domain is 'Workstation' by default */
+
   ssl = false;
 
   module_data = NULL;
@@ -204,6 +216,10 @@ Service(const Service& ref)
   //  free(path);
   path = Strndup(ref.path, strlen(ref.path));
 
+  db = Strndup(ref.db, strlen(ref.db));
+
+  domain = Strndup(ref.domain, strlen(ref.domain));
+
   ideal_parallelism = 1;  /* we start with 1 connection exactly */
 
   ssl = ref.ssl;
@@ -229,6 +245,7 @@ Service(const Service& ref)
   list_finished = false;
   just_started = true;
   more_rounds = false;
+  skip_username = false;
 
   end.orly = false;
   end.reason = NULL;
@@ -261,7 +278,7 @@ Service::
 const char *Service::
 HostInfo(void)
 {
-  if (!hostinfo)
+  if (!hostinfo) 
     hostinfo = (char *) safe_malloc(MAX_HOSTINFO_LEN);
 
   if (!target)
@@ -269,7 +286,6 @@ HostInfo(void)
 
   Snprintf(hostinfo, MAX_HOSTINFO_LEN, "%s://%s:%hu", name,
       target->NameIP(), portno);
-
   return hostinfo;
 }
 
@@ -328,7 +344,7 @@ getNextPair(char **user, char **pass)
   /* If the login pair pool is not empty, then give priority to these
    * pairs and extract the first one you find. */
   if (!pair_pool.empty()) {
-    
+
     list <loginpair>::iterator pairli = pair_pool.begin();
     tmp = pair_pool.front();
     *user = tmp.user;
@@ -356,13 +372,41 @@ getNextPair(char **user, char **pass)
     return 0;
   }
 
+  if (!strcmp(name, "mongodb")) {
+    if (skip_username == true) {
+      uservi--;
+      if (o.debugging > 5)
+        log_write(LOG_STDOUT, "%s skipping username!!!! %s\n", HostInfo(), *(uservi));
+      uservi = UserArray->erase(uservi);
+      if (uservi == UserArray->end()) {
+        uservi = UserArray->begin();
+        passvi++;
+        if (passvi == PassArray->end()) {
+          if (o.debugging > 8)
+            log_write(LOG_STDOUT, "%s Password list finished!\n", HostInfo());
+          loginlist_fini = true;
+          return -1;
+        }
+      } 
+      //printf("next user: %s\n", *uservi);
+      skip_username = false;
+    }
+  }
+
   if (!strcmp(name, "ssh")) {
 
-    //printf("ssh special case\n");
+    /* catches bug where ssh module crashed when user had specified correct username and
+     * password in the first attempt
+     */
+    if (just_started == false && PassArray->size() == 1 && UserArray->size() == 1) {
+      uservi = UserArray->end();
+      passvi = PassArray->end();
+      loginlist_fini = true;
+      return -1;
+    }
 
     /* special case for ssh */
     if (just_started == true) {
-      //printf("just started\n");
 
       /* keep using same username for first timing probe */
       if (passvi == PassArray->end()) {                                          
@@ -379,13 +423,11 @@ getNextPair(char **user, char **pass)
       *pass = *passvi;
       passvi++;
 
-      //printf("user: %s \n", *user);
-      //printf("pass: %s \n", *pass);
       return 0;
     } 
   }
 
-  if (o.pairwise) {
+  if (o.pairwise && strcmp(name, "mongodb")) {
 
     if (uservi == UserArray->end() && passvi == PassArray->end()) {
       if (o.debugging > 8)
@@ -412,26 +454,8 @@ getNextPair(char **user, char **pass)
     uservi++;
     passvi++;
 
-    /* Iteration of username list for each password (default). */
-  } else if (!o.passwords_first) {
-    /* If username list finished one iteration then reset the username pointer
-     * to show at the beginning and get password from password list. */
-    if (uservi == UserArray->end()) {
-      uservi = UserArray->begin();
-      passvi++;
-      if (passvi == PassArray->end()) {
-        if (o.debugging > 8)
-          log_write(LOG_STDOUT, "%s Password list finished!\n", HostInfo());
-        loginlist_fini = true;
-        return -1;
-      }
-    }
-    *pass = *passvi;
-    *user = *uservi;
-    uservi++;
-
+  } else if (o.passwords_first && strcmp(name, "mongodb")) {
     /* Iteration of password list for each username. */
-  } else if (o.passwords_first) { 
     /* If password list finished one iteration then reset the password pointer
      * to show at the beginning and get next username from username list. */
     if (passvi == PassArray->end()) {                                          
@@ -447,8 +471,27 @@ getNextPair(char **user, char **pass)
     *user = *uservi;
     *pass = *passvi;
     passvi++;
+
+  } else if (!o.passwords_first || !strcmp(name, "mongodb")) {
+    /* Iteration of username list for each password (default). */
+    /* If username list finished one iteration then reset the username pointer
+     * to show at the beginning and get password from password list. */
+    if (uservi == UserArray->end()) {
+      uservi = UserArray->begin();
+      passvi++;
+      if (passvi == PassArray->end()) {
+        if (o.debugging > 8)
+          log_write(LOG_STDOUT, "%s Password list finished!\n", HostInfo());
+        loginlist_fini = true;
+        return -1;
+      }
+    }
+    *pass = *passvi;
+    *user = *uservi;
+    uservi++;
   }
 
+    
   return 0;
 }
 
@@ -475,7 +518,7 @@ removeFromPool(char *user, char *pass)
         log_write(LOG_STDOUT, "%s Pool: Removed '%s' \n", HostInfo(), tmp.pass);
       else
         log_write(LOG_STDOUT, "%s Pool: Removed %s %s\n", HostInfo(),
-          tmp.user, tmp.pass);
+            tmp.user, tmp.pass);
     }
     mirror_pair_pool.erase(li);
   }
@@ -503,7 +546,7 @@ appendToPool(char *user, char *pass)
       log_write(LOG_STDOUT, "%s Pool: Append '%s' \n", HostInfo(), tmp.pass);
     else
       log_write(LOG_STDOUT, "%s Pool: Append '%s' '%s' \n", HostInfo(),
-        tmp.user, tmp.pass);
+          tmp.user, tmp.pass);
   }
 
   /* 

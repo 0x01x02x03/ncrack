@@ -5,18 +5,18 @@
  *                                                                         *
  ***********************IMPORTANT NMAP LICENSE TERMS************************
  *                                                                         *
- * The Nmap Security Scanner is (C) 1996-2016 Insecure.Com LLC. Nmap is    *
- * also a registered trademark of Insecure.Com LLC.  This program is free  *
- * software; you may redistribute and/or modify it under the terms of the  *
- * GNU General Public License as published by the Free Software            *
- * Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE CLARIFICATIONS  *
- * AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your right to use,    *
- * modify, and redistribute this software under certain conditions.  If    *
- * you wish to embed Nmap technology into proprietary software, we sell    *
- * alternative licenses (contact sales@nmap.com).  Dozens of software      *
- * vendors already license Nmap technology such as host discovery, port    *
- * scanning, OS detection, version detection, and the Nmap Scripting       *
- * Engine.                                                                 *
+ * The Nmap Security Scanner is (C) 1996-2017 Insecure.Com LLC ("The Nmap  *
+ * Project"). Nmap is also a registered trademark of the Nmap Project.     *
+ * This program is free software; you may redistribute and/or modify it    *
+ * under the terms of the GNU General Public License as published by the   *
+ * Free Software Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE   *
+ * CLARIFICATIONS AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your   *
+ * right to use, modify, and redistribute this software under certain      *
+ * conditions.  If you wish to embed Nmap technology into proprietary      *
+ * software, we sell alternative licenses (contact sales@nmap.com).        *
+ * Dozens of software vendors already license Nmap technology such as      *
+ * host discovery, port scanning, OS detection, version detection, and     *
+ * the Nmap Scripting Engine.                                              *
  *                                                                         *
  * Note that the GPL places important restrictions on "derivative works",  *
  * yet it does not provide a detailed definition of that term.  To avoid   *
@@ -58,11 +58,18 @@
  * particularly including the GPL Section 3 requirements of providing      *
  * source code and allowing free redistribution of the work as a whole.    *
  *                                                                         *
- * As another special exception to the GPL terms, Insecure.Com LLC grants  *
+ * As another special exception to the GPL terms, the Nmap Project grants  *
  * permission to link the code of this program with any version of the     *
  * OpenSSL library which is distributed under a license identical to that  *
  * listed in the included docs/licenses/OpenSSL.txt file, and distribute   *
  * linked combinations including the two.                                  *
+ *                                                                         *
+ * The Nmap Project has permission to redistribute Npcap, a packet         *
+ * capturing driver and library for the Microsoft Windows platform.        *
+ * Npcap is a separate work with it's own license rather than this Nmap    *
+ * license.  Since the Npcap license does not permit redistribution        *
+ * without special permission, our Nmap Windows binary packages which      *
+ * contain Npcap may not be redistributed without special permission.      *
  *                                                                         *
  * Any redistribution of Covered Software, including any derived works,    *
  * must obey and carry forward all of the terms of this license, including *
@@ -103,12 +110,12 @@
  * to the dev@nmap.org mailing list for possible incorporation into the    *
  * main distribution.  By sending these changes to Fyodor or one of the    *
  * Insecure.Org development mailing lists, or checking them into the Nmap  *
- * source code repository, it is understood (unless you specify otherwise) *
- * that you are offering the Nmap Project (Insecure.Com LLC) the           *
- * unlimited, non-exclusive right to reuse, modify, and relicense the      *
- * code.  Nmap will always be available Open Source, but this is important *
- * because the inability to relicense code has caused devastating problems *
- * for other Free Software projects (such as KDE and NASM).  We also       *
+ * source code repository, it is understood (unless you specify            *
+ * otherwise) that you are offering the Nmap Project the unlimited,        *
+ * non-exclusive right to reuse, modify, and relicense the code.  Nmap     *
+ * will always be available Open Source, but this is important because     *
+ * the inability to relicense code has caused devastating problems for     *
+ * other Free Software projects (such as KDE and NASM).  We also           *
  * occasionally relicense the code to third parties as discussed above.    *
  * If you wish to specify special license conditions of your               *
  * contributions, just say so when you send them.                          *
@@ -317,6 +324,14 @@ parse_module_options(char *const exp)
     vi->misc.path = Strndup(temp.misc.path, strlen(temp.misc.path)+1);
     free(temp.misc.path);
   }
+  if (temp.misc.db) {
+    vi->misc.db = Strndup(temp.misc.db, strlen(temp.misc.db)+1);
+    free(temp.misc.db);
+  }
+  if (temp.misc.domain) {
+    vi->misc.domain = Strndup(temp.misc.domain, strlen(temp.misc.domain)+1);
+    free(temp.misc.domain);
+  }
   if (temp.misc.ssl)
     vi->misc.ssl = temp.misc.ssl;
 }
@@ -356,6 +371,18 @@ apply_host_options(Service *service, char *const options)
     service->path = Strndup(temp.misc.path, strlen(temp.misc.path)+1);
     free(temp.misc.path);
   }
+  if (temp.misc.db) {
+    if (service->db)
+      free(service->db);
+    service->db = Strndup(temp.misc.db, strlen(temp.misc.db)+1);
+    free(temp.misc.db);
+  }
+  if (temp.misc.domain) {
+    if (service->domain)
+      free(service->domain);
+    service->domain = Strndup(temp.misc.domain, strlen(temp.misc.domain)+1);
+    free(temp.misc.domain);
+  }
   if (temp.misc.ssl)
     service->ssl = temp.misc.ssl;
 
@@ -394,6 +421,16 @@ apply_service_options(Service *service)
     if (service->path)
       free(service->path);
     service->path = Strndup(vi->misc.path, strlen(vi->misc.path));
+  }
+  if (vi->misc.db) {
+    if (service->db)
+      free(service->db);
+    service->db = Strndup(vi->misc.db, strlen(vi->misc.db));
+  }
+  if (vi->misc.domain) {
+    if (service->domain)
+      free(service->domain);
+    service->domain = Strndup(vi->misc.domain, strlen(vi->misc.domain));
   }
   if (vi->misc.ssl)
     service->ssl = vi->misc.ssl;
@@ -438,7 +475,7 @@ prepare_timing_template(timing_options *timing)
     timing->max_connection_limit = 1;
     timing->auth_tries = 1;
     timing->connection_delay = 10000; /* 10 secs */
-    timing->connection_retries = 1;
+    timing->connection_retries = 20;
     if (o.connection_limit == NOT_ASSIGNED)
       o.connection_limit = 50;
   } else if (o.timing_level == 1) { /* Sneaky */
@@ -446,7 +483,7 @@ prepare_timing_template(timing_options *timing)
     timing->max_connection_limit = 2;
     timing->auth_tries = 2;
     timing->connection_delay = 7500; 
-    timing->connection_retries = 1;
+    timing->connection_retries = 30;
     if (o.connection_limit == NOT_ASSIGNED)
       o.connection_limit = 150;
   } else if (o.timing_level == 2) { /* Polite */
@@ -454,7 +491,7 @@ prepare_timing_template(timing_options *timing)
     timing->max_connection_limit = 5;
     timing->auth_tries = 5;
     timing->connection_delay = 5000;
-    timing->connection_retries = 1;
+    timing->connection_retries = 30;
     if (o.connection_limit == NOT_ASSIGNED)
       o.connection_limit = 500;
   } else if (o.timing_level == 4) { /* Aggressive */
@@ -462,7 +499,7 @@ prepare_timing_template(timing_options *timing)
     timing->max_connection_limit = 150;
     timing->auth_tries = 0;
     timing->connection_delay = 0;
-    timing->connection_retries = 15;
+    timing->connection_retries = 40;
     if (o.connection_limit == NOT_ASSIGNED)
       o.connection_limit = 3000;
   } else if (o.timing_level == 5) { /* Insane */
@@ -470,7 +507,7 @@ prepare_timing_template(timing_options *timing)
     timing->max_connection_limit = 1000;
     timing->auth_tries = 0;
     timing->connection_delay = 0;
-    timing->connection_retries = 20;
+    timing->connection_retries = 50;
     if (o.connection_limit == NOT_ASSIGNED)
       o.connection_limit = 10000;
   } else { /* Normal */
@@ -478,7 +515,7 @@ prepare_timing_template(timing_options *timing)
     timing->max_connection_limit = 80;
     timing->auth_tries = 0;
     timing->connection_delay = 0;
-    timing->connection_retries = 10;
+    timing->connection_retries = 30;
     if (o.connection_limit == NOT_ASSIGNED)
       o.connection_limit = 1500;
   }
@@ -656,6 +693,10 @@ check_service_option(global_service *temp, char *argname, char *argval)
     temp->misc.path = Strndup(argval, strlen(argval));
   } else if (!strcmp("ssl", argname)) {
     temp->misc.ssl = true;
+  } else if (!strcmp("db", argname)) { 
+    temp->misc.db = Strndup(argval, strlen(argval));
+  } else if (!strcmp("domain", argname)) { 
+    temp->misc.domain = Strndup(argval, strlen(argval));
   } else 
     error("Unknown service option: %s", argname);
 }

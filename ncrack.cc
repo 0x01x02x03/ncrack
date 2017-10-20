@@ -6,18 +6,18 @@
  *                                                                         *
  ***********************IMPORTANT NMAP LICENSE TERMS************************
  *                                                                         *
- * The Nmap Security Scanner is (C) 1996-2016 Insecure.Com LLC. Nmap is    *
- * also a registered trademark of Insecure.Com LLC.  This program is free  *
- * software; you may redistribute and/or modify it under the terms of the  *
- * GNU General Public License as published by the Free Software            *
- * Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE CLARIFICATIONS  *
- * AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your right to use,    *
- * modify, and redistribute this software under certain conditions.  If    *
- * you wish to embed Nmap technology into proprietary software, we sell    *
- * alternative licenses (contact sales@nmap.com).  Dozens of software      *
- * vendors already license Nmap technology such as host discovery, port    *
- * scanning, OS detection, version detection, and the Nmap Scripting       *
- * Engine.                                                                 *
+ * The Nmap Security Scanner is (C) 1996-2017 Insecure.Com LLC ("The Nmap  *
+ * Project"). Nmap is also a registered trademark of the Nmap Project.     *
+ * This program is free software; you may redistribute and/or modify it    *
+ * under the terms of the GNU General Public License as published by the   *
+ * Free Software Foundation; Version 2 ("GPL"), BUT ONLY WITH ALL OF THE   *
+ * CLARIFICATIONS AND EXCEPTIONS DESCRIBED HEREIN.  This guarantees your   *
+ * right to use, modify, and redistribute this software under certain      *
+ * conditions.  If you wish to embed Nmap technology into proprietary      *
+ * software, we sell alternative licenses (contact sales@nmap.com).        *
+ * Dozens of software vendors already license Nmap technology such as      *
+ * host discovery, port scanning, OS detection, version detection, and     *
+ * the Nmap Scripting Engine.                                              *
  *                                                                         *
  * Note that the GPL places important restrictions on "derivative works",  *
  * yet it does not provide a detailed definition of that term.  To avoid   *
@@ -59,11 +59,18 @@
  * particularly including the GPL Section 3 requirements of providing      *
  * source code and allowing free redistribution of the work as a whole.    *
  *                                                                         *
- * As another special exception to the GPL terms, Insecure.Com LLC grants  *
+ * As another special exception to the GPL terms, the Nmap Project grants  *
  * permission to link the code of this program with any version of the     *
  * OpenSSL library which is distributed under a license identical to that  *
  * listed in the included docs/licenses/OpenSSL.txt file, and distribute   *
  * linked combinations including the two.                                  *
+ *                                                                         *
+ * The Nmap Project has permission to redistribute Npcap, a packet         *
+ * capturing driver and library for the Microsoft Windows platform.        *
+ * Npcap is a separate work with it's own license rather than this Nmap    *
+ * license.  Since the Npcap license does not permit redistribution        *
+ * without special permission, our Nmap Windows binary packages which      *
+ * contain Npcap may not be redistributed without special permission.      *
  *                                                                         *
  * Any redistribution of Covered Software, including any derived works,    *
  * must obey and carry forward all of the terms of this license, including *
@@ -104,12 +111,12 @@
  * to the dev@nmap.org mailing list for possible incorporation into the    *
  * main distribution.  By sending these changes to Fyodor or one of the    *
  * Insecure.Org development mailing lists, or checking them into the Nmap  *
- * source code repository, it is understood (unless you specify otherwise) *
- * that you are offering the Nmap Project (Insecure.Com LLC) the           *
- * unlimited, non-exclusive right to reuse, modify, and relicense the      *
- * code.  Nmap will always be available Open Source, but this is important *
- * because the inability to relicense code has caused devastating problems *
- * for other Free Software projects (such as KDE and NASM).  We also       *
+ * source code repository, it is understood (unless you specify            *
+ * otherwise) that you are offering the Nmap Project the unlimited,        *
+ * non-exclusive right to reuse, modify, and relicense the code.  Nmap     *
+ * will always be available Open Source, but this is important because     *
+ * the inability to relicense code has caused devastating problems for     *
+ * other Free Software projects (such as KDE and NASM).  We also           *
  * occasionally relicense the code to third parties as discussed above.    *
  * If you wish to specify special license conditions of your               *
  * contributions, just say so when you send them.                          *
@@ -242,6 +249,8 @@ print_usage(void)
       "    ssl: enable SSL over this service\n"
       "    path <name>: used in modules like HTTP ('=' needs escaping if "
            "used)\n"
+      "    db <name>: used in modules like MongoDB to specify the database\n"
+      "    domain <name>: used in modules like WinRM to specify the domain\n"
       "TIMING AND PERFORMANCE:\n"
       "  Options which take <time> are in seconds, unless you append 'ms'\n"
       "  (miliseconds), 'm' (minutes), or 'h' (hours) to the value (e.g. 30m)."
@@ -293,7 +302,7 @@ print_usage(void)
       "  -V: Print version number\n"
       "  -h: Print this help summary page.\n"
       "MODULES:\n"
-      "  FTP, SSH, Telnet, HTTP(S), POP3(S), IMAP, SMB, RDP, VNC, SIP, Redis, PostgreSQL, MySQL, WinRM, OWA\n"
+      "  SSH, RDP, FTP, Telnet, HTTP(S), POP3(S), IMAP, SMB, VNC, SIP, Redis, PostgreSQL, MySQL, MSSQL, MongoDB, Cassandra, WinRM, OWA\n"
       "EXAMPLES:\n"
       "  ncrack -v --user root localhost:22\n"
       "  ncrack -v -T5 https://192.168.0.1\n"
@@ -332,6 +341,8 @@ lookup_init(const char *const filename)
       continue;
 
     temp.misc.ssl = false;
+    temp.misc.db = NULL;
+    temp.misc.domain = NULL;
 
     if (sscanf(line, "%127s %hu/%15s", servicename, &portno, proto) != 3)
       fatal("invalid ncrack-services file: %s", filename);
@@ -347,6 +358,12 @@ lookup_init(const char *const filename)
       || !strncmp(servicename, "pop3s", sizeof("pop3s"))
       || !strncmp(servicename, "owa", sizeof("owa")))
       temp.misc.ssl = true;
+
+    if (!strncmp(servicename, "mongodb", sizeof("mongodb")))
+        temp.misc.db = Strndup("admin", sizeof("admin"));
+
+    if (!strncmp(servicename, "winrm", sizeof("winrm")))
+        temp.misc.domain = Strndup("Workstation", sizeof("Workstation"));
 
     for (vi = ServicesTable.begin(); vi != ServicesTable.end(); vi++) {
       if ((vi->lookup.portno == temp.lookup.portno) 
@@ -756,19 +773,23 @@ call_module(nsock_pool nsp, Connection *con)
     ncrack_vnc(nsp, con);
   else if (!strcmp(name, "redis"))
     ncrack_redis(nsp, con);
-  else if (!strcmp(name, "winrm"))
-    ncrack_winrm(nsp, con);
   else if (!strcmp(name, "imap"))
     ncrack_imap(nsp, con);
   else if (!strcmp(name, "cassandra"))
-    ncrack_imap(nsp, con);
+    ncrack_imap(nsp, con);  
 #if HAVE_OPENSSL
+  else if (!strcmp(name, "winrm"))
+    ncrack_winrm(nsp, con);
+  else if (!strcmp(name, "mongodb"))
+    ncrack_mongodb(nsp, con);
   else if (!strcmp(name, "pop3s"))
     ncrack_pop3(nsp, con);
   else if (!strcmp(name, "mysql"))
     ncrack_mysql(nsp, con);
   else if (!strcmp(name, "psql"))
-    ncrack_psql(nsp, con);
+    ncrack_psql(nsp, con);  
+  else if (!strcmp(name, "mssql"))
+    ncrack_mssql(nsp, con);
   else if (!strcmp(name, "ssh"))
     ncrack_ssh(nsp, con);
   else if (!strcmp(name, "owa"))
@@ -815,7 +836,6 @@ ncrack_main(int argc, char **argv)
   FILE *inputfd = NULL;
   char *normalfilename = NULL;
   char *xmlfilename = NULL;
-  unsigned long l;
   unsigned int i; /* iteration var */
   int argiter;    /* iteration for argv */
   char services_file[256]; /* path name for "ncrack-services" file */
@@ -883,8 +903,6 @@ ncrack_main(int argc, char **argv)
     {"oA", required_argument, 0, 0},  
     {"oN", required_argument, 0, 0},
     {"oX", required_argument, 0, 0},  
-    {"host_timeout", required_argument, 0, 0},
-    {"host-timeout", required_argument, 0, 0},
     {"append_output", no_argument, 0, 0},
     {"append-output", no_argument, 0, 0},
     {"log_errors", no_argument, 0, 0},
@@ -939,17 +957,6 @@ ncrack_main(int argc, char **argv)
                 "exclusive.");
           exclude_spec = strdup(optarg);
 
-        } else if (!optcmp(long_options[option_index].name, "host-timeout")) {
-          l = tval2msecs(optarg);
-          if (l <= 1500)
-            fatal("--host-timeout is specified in milliseconds unless you "
-                "qualify it by appending 's', 'm', or 'h'. The value must "
-                "be greater than 1500 milliseconds");
-          o.host_timeout = l;
-          if (l < 30000) 
-            error("host-timeout is given in milliseconds, so you specified "
-                "less than 30 seconds (%lims). This is allowed but not "
-                "recommended.", l);
         } else if (!strcmp(long_options[option_index].name, "services")) {
           parse_services(optarg, services_cmd);
         } else if (!strcmp(long_options[option_index].name, "list")) {
@@ -1045,7 +1052,7 @@ ncrack_main(int argc, char **argv)
           o.verbose += 2;  
         } else if (strcmp(long_options[option_index].name, "save") == 0) {
           o.save_file = logfilename(optarg, tm);
-        }
+        } 
         break;
       case '6':
 #if !HAVE_IPV6
@@ -1158,8 +1165,8 @@ ncrack_main(int argc, char **argv)
       case 'V': 
         log_write(LOG_STDOUT, "\n%s version %s ( %s )\n",
             NCRACK_NAME, NCRACK_VERSION, NCRACK_URL);
-        log_write(LOG_STDOUT, "Modules: FTP, SSH, Telnet, HTTP(S), POP3(S), IMAP, "
-            "SMB, RDP, VNC, SIP, Redis, PostgreSQL, MySQL, WinRM, OWA\n");
+        log_write(LOG_STDOUT, "Modules: SSH, RDP, FTP, Telnet, HTTP(S), POP3(S), IMAP, "
+            "SMB, VNC, SIP, Redis, PostgreSQL, MySQL, MSSQL, MongoDB, Cassandra, WinRM, OWA\n");
         exit(EXIT_SUCCESS);
         break;
       case 'v':
@@ -1375,6 +1382,8 @@ ncrack_main(int argc, char **argv)
       int col_to = colno++;
       int col_ssl = colno++;
       int col_path = colno++;
+      int col_db = colno++;
+      int col_domain = colno++;
       int numrows = ServicesTable.size() + 1;
       NcrackOutputTable *Tbl = new NcrackOutputTable(numrows, colno);
 
@@ -1387,6 +1396,8 @@ ncrack_main(int argc, char **argv)
       Tbl->addItem(0, col_to, false, "to", sizeof("to") - 1);
       Tbl->addItem(0, col_ssl, false, "ssl", sizeof("ssl") - 1);
       Tbl->addItem(0, col_path, false, "path", sizeof("path") - 1);
+      Tbl->addItem(0, col_db, false, "db", sizeof("db") - 1);
+      Tbl->addItem(0, col_domain, false, "domain", sizeof("domain") - 1);
 
       int rowno = 1;
 
@@ -1437,6 +1448,12 @@ ncrack_main(int argc, char **argv)
         Tbl->addItem(rowno, col_path, false, ServicesTable[i].misc.path ?
             ServicesTable[i].misc.path : "null");
 
+        Tbl->addItem(rowno, col_db, false, ServicesTable[i].misc.db ?
+            ServicesTable[i].misc.db : "null");
+
+        Tbl->addItem(rowno, col_domain, false, ServicesTable[i].misc.domain ?
+            ServicesTable[i].misc.domain : "null");
+
         rowno++;
       }      
       log_write(LOG_PLAIN, "%s", Tbl->printableTable(NULL));
@@ -1452,11 +1469,12 @@ ncrack_main(int argc, char **argv)
       for (li = SG->services_all.begin(); li != SG->services_all.end(); li++) {
         if ((*li)->target == Targets[i]) 
           log_write(LOG_PLAIN, "  %s:%hu cl=%ld, CL=%ld, at=%ld, cd=%ld, "
-              "cr=%ld, to=%lldms, ssl=%s, path=%s\n", 
+              "cr=%ld, to=%lldms, ssl=%s, path=%s, db=%s, domain=%s\n",
               (*li)->name, (*li)->portno, (*li)->min_connection_limit,
               (*li)->max_connection_limit, (*li)->auth_tries, 
               (*li)->connection_delay, (*li)->connection_retries,
-              (*li)->timeout, (*li)->ssl ? "yes" : "no", (*li)->path);
+              (*li)->timeout, (*li)->ssl ? "yes" : "no", (*li)->path,
+              (*li)->db, (*li)->domain);
       }
     }
   } else {
@@ -1506,6 +1524,7 @@ ncrack_main(int argc, char **argv)
 
 
     SG->last_accessed = SG->services_active.end();
+    SG->prev_modified = SG->services_active.end();
     /* Ncrack 'em all! */
     ncrack(SG);
   }
@@ -2153,6 +2172,8 @@ ncrack_connect_handler(nsock_pool nsp, nsock_event nse, void *mydata)
 
   } else if (status == NSE_STATUS_SUCCESS) {
 
+    serv->failed_connections = 0;
+
 #if HAVE_OPENSSL
     // Snag our SSL_SESSION from the nsi for use in subsequent connections.
     if (nsock_iod_check_ssl(nsi)) {
@@ -2183,6 +2204,11 @@ ncrack_connect_handler(nsock_pool nsp, nsock_event nse, void *mydata)
     serv->failed_connections++;
     serv->appendToPool(con->user, con->pass);
 
+    if (serv->failed_connections > serv->connection_retries) {
+      SG->pushServiceToList(serv, &SG->services_finished);
+      if (o.verbose)
+        log_write(LOG_STDOUT, "%s finished. Too many failed attemps. \n", hostinfo);
+    }
     /* Failure of connecting on first attempt means we should probably drop
      * the service for good. */
     if (serv->just_started) {
@@ -2295,10 +2321,12 @@ ncrack_probes(nsock_pool nsp, ServiceGroup *SG)
     }
   }
 
-  if (SG->last_accessed == SG->services_active.end()) 
+  if (SG->last_accessed == SG->services_active.end()) {
     li = SG->services_active.begin();
-  else 
+  } else {
     li = SG->last_accessed++;
+  }
+
 
 
   while (SG->active_connections < SG->connection_limit
@@ -2339,7 +2367,7 @@ ncrack_probes(nsock_pool nsp, ServiceGroup *SG)
 
 
     /*
-     * To mark a service as completely finished, first make sure:
+     * To mark a service as completely  finished, first make sure:
      * a) that the username list has finished being iterated through once
      * b) that the mirror pair pool, which holds temporary login pairs which
      *    are currently being used, is empty
@@ -2439,9 +2467,21 @@ ncrack_probes(nsock_pool nsp, ServiceGroup *SG)
 
 next:
 
+    /* 
+     * this will take care of the case where the state of the services_active list
+     * has been modified in the meantime by any pushToList or popFromList without
+     * saving the state to the current li iterator thus showing to a non-valid
+     * service 
+     */
+    if (SG->prev_modified != li) {
+      li = SG->services_active.end();
+    }
+
     SG->last_accessed = li;
-    if (li == SG->services_active.end() || ++li == SG->services_active.end())
+    if (li == SG->services_active.end() || ++li == SG->services_active.end()) {
       li = SG->services_active.begin();
+    }
+
 
     i++;
     if (o.stealthy_linear && i == SG->services_all.size())
